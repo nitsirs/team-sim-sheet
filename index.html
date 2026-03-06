@@ -364,6 +364,29 @@
             color: #9ca3af;
             margin-top: 5px;
         }
+
+        .score-value.is-negative {
+            background: none;
+            -webkit-text-fill-color: #dc2626;
+            color: #dc2626;
+        }
+
+        .bankrupt-badge {
+            display: inline-block;
+            margin-bottom: 14px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #991b1b;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+        }
+
+        .bankrupt-state {
+            border: 2px solid #ef4444;
+            box-shadow: 0 20px 60px rgba(239, 68, 68, 0.24);
+        }
         
         @media (max-width: 480px) {
             .score-panel {
@@ -390,6 +413,7 @@
 
     <div id="step2" class="container hidden">
         <h2 id="teamDisplay">TEAM</h2>
+        <div id="bankruptBadge" class="bankrupt-badge hidden">BANKRUPT</div>
         
         <div class="score-panel">
             <div class="score-card">
@@ -535,11 +559,23 @@
             const cash = pickValue((k) => k.includes("cash") || k.includes("เงินสด"));
             const brand = pickValue((k) => k.includes("brand") || k.includes("แบรนด์"));
             const morale = pickValue((k) => k.includes("morale") || k.includes("ขวัญ") || k.includes("กำลังใจ"));
+
+            const cashNum = Number(cash);
+            const brandNum = Number(brand);
+            const moraleNum = Number(morale);
+            const isBankrupt = cashNum < 0 || brandNum < 0 || moraleNum < 0;
             
             // Update display
             document.getElementById('cashScore').innerText = cash;
             document.getElementById('brandScore').innerText = brand;
             document.getElementById('moraleScore').innerText = morale;
+
+            // Highlight negative values and bankrupt state.
+            document.getElementById('cashScore').classList.toggle('is-negative', cashNum < 0);
+            document.getElementById('brandScore').classList.toggle('is-negative', brandNum < 0);
+            document.getElementById('moraleScore').classList.toggle('is-negative', moraleNum < 0);
+            document.getElementById('step2').classList.toggle('bankrupt-state', isBankrupt);
+            document.getElementById('bankruptBadge').classList.toggle('hidden', !isBankrupt);
             
             // Add update timestamps
             const now = new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
