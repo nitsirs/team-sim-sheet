@@ -431,7 +431,7 @@
         const entryTeam = "entry.973482943";
         const entryScen = "entry.1638356131";
         const entryVote = "entry.1554458861";
-        const scriptURL = "https://script.google.com/macros/s/AKfycbx6gbKJ_2QOoGcDKSehaxsi_maI2n454sPztVwuIiPhU9lDtW_8fr14oLev_4Y81cL1nA/exec";
+        const scriptURL = "https://script.google.com/macros/s/AKfycbyOS9s_loC5UIvLOi8uBlVSvrRKrmfdYOHIhdEusU2hKPDJKMpwTt2674vHrmzp8HOZyA/exec";
 
         let currentTeam = null;
         let scoreRefreshInterval = null;
@@ -499,24 +499,42 @@
             if (!currentTeam) return;
             
             fetch(`${scriptURL}?teamId=${encodeURIComponent(currentTeam)}`)
-                .then(response => response.json())
+                .then(response => response.text())
+                .then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        // Apps Script returns HTML for internal errors; log a short preview for debugging.
+                        console.error("Score endpoint did not return JSON:", text.slice(0, 140));
+                        return { error: "invalid_json" };
+                    }
+                })
                 .then(data => {
                     if (data.error) {
-                        console.log("Score data not found yet");
+                        console.log("Score data not available yet:", data.error);
                         return;
                     }
                     updateScoreDisplay(data);
                 })
                 .catch(error => {
-                    console.log("Fetching scores...");
+                    console.error("Score fetch failed:", error);
                 });
         }
 
         function updateScoreDisplay(data) {
-            // Map column headers to display values
-            const cash = data["Current Cash เงินสด"] || data["Current Cash"] || "-";
-            const brand = data["Current Brand แบรนด์"] || data["Current Brand"] || "-";
-            const morale = data["Current Morale ขวัญและกำลังใจ"] || data["Current Morale"] || "-";
+            // Handle mixed header formats (Thai/English/newline/spacing variations).
+            const keys = Object.keys(data || {});
+            const pickValue = (matcher) => {
+                const k = keys.find((raw) => {
+                    const normalized = String(raw).toLowerCase().replace(/\s+/g, " ").trim();
+                    return matcher(normalized);
+                });
+                return k ? data[k] : "-";
+            };
+
+            const cash = pickValue((k) => k.includes("cash") || k.includes("เงินสด"));
+            const brand = pickValue((k) => k.includes("brand") || k.includes("แบรนด์"));
+            const morale = pickValue((k) => k.includes("morale") || k.includes("ขวัญ") || k.includes("กำลังใจ"));
             
             // Update display
             document.getElementById('cashScore').innerText = cash;
