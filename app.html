@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Decision Portal</title>
+    <style>
+        :root { --success: #2ecc71; --danger: #e74c3c; --primary: #1877f2; --bg: #f0f2f5; }
+        body { font-family: 'Sarabun', sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { background: white; padding: 40px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 95%; max-width: 450px; text-align: center; }
+        .hidden { display: none; }
+        
+        /* Step 1: Login */
+        h1 { font-size: 1.6rem; margin-bottom: 25px; color: #333; }
+        input { width: 85%; padding: 18px; font-size: 2rem; border-radius: 15px; border: 2px solid #ddd; text-align: center; margin-bottom: 20px; outline: none; }
+        .enter-btn { background: var(--primary); color: white; padding: 18px; border: none; border-radius: 15px; font-size: 1.3rem; font-weight: bold; cursor: pointer; width: 90%; }
+
+        /* Step 2: Voting */
+        select { width: 100%; padding: 15px; font-size: 1.1rem; border-radius: 12px; border: 2px solid var(--primary); margin-bottom: 25px; background: white; }
+        .vote-row { display: flex; gap: 20px; }
+        .vote-btn { flex: 1; padding: 50px 0; border: none; border-radius: 25px; font-size: 5rem; font-weight: bold; cursor: pointer; color: white; transition: 0.3s; }
+        .btn-a { background: var(--success); }
+        .btn-b { background: var(--danger); }
+        
+        /* Fading Lock Effect */
+        .voted-lock { opacity: 0.1; pointer-events: none; filter: grayscale(1); transform: scale(0.9); }
+        .lock-notice { margin-top: 20px; padding: 15px; background: #fff3cd; color: #856404; border-radius: 10px; font-weight: bold; border: 1px solid #ffeeba; }
+        #teamDisplay { color: var(--primary); margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="step1" class="container">
+        <h1>ระบุหมายเลขทีม (Team ID)</h1>
+        <input type="number" id="teamInput" placeholder="ใส่เลขทีม" oninput="if(this.value.length > 3) this.value = this.value.slice(0,3);">
+        <button class="enter-btn" onclick="startVoting()">เข้าสู่ห้องโหวต</button>
+    </div>
+
+    <div id="step2" class="container hidden">
+        <h2 id="teamDisplay">TEAM</h2>
+        <select id="scenarioSelect" onchange="checkScenarioLock()">
+            <option value="S1">🚨 สถานการณ์ที่ 1: วิกฤตยอดขายตก</option>
+            <option value="P1">🌟 Pop-up Event: ปรากฏการณ์ไวรัล</option>
+            <option value="S2">🚨 สถานการณ์ที่ 2: หนี้กรรมทางเทคโนโลยี</option>
+            <option value="S3">🚨 สถานการณ์ที่ 3: วิกฤตข้อมูลหลุด</option>
+        </select>
+
+        <div id="voteWrapper" class="vote-row">
+            <button class="vote-btn btn-a" onclick="processVote('A')">A</button>
+            <button class="vote-btn btn-b" onclick="processVote('B')">B</button>
+        </div>
+        
+        <div id="lockNotice" class="lock-notice hidden">✓ คุณได้ลงมติในรอบนี้ไปแล้ว</div>
+        <p style="margin-top: 20px; font-size: 0.8rem; color: #999;">เปลี่ยนทีม กด Refresh หน้าจอ</p>
+    </div>
+
+    <iframe name="post_frame" style="display:none;"></iframe>
+
+    <script>
+        const formURL = "https://docs.google.com/forms/d/e/1FAIpQLSfoBvjzVBohTmTaYp2YLV8Yvsvv_to-_Ok9DMwTAMFWnaLwcw/formResponse";
+        const entryTeam = "entry.973482943";
+        const entryScen = "entry.1638356131";
+        const entryVote = "entry.1554458861";
+
+        let currentTeam = null;
+
+        function startVoting() {
+            let val = document.getElementById('teamInput').value;
+            if(!val || val <= 0) return alert("กรุณาใส่หมายเลขทีมที่ถูกต้อง");
+            
+            // ลบเลข 0 ด้านหน้า (เช่น 05 กลายเป็น 5)
+            currentTeam = parseInt(val, 10).toString();
+            
+            document.getElementById('teamDisplay').innerText = "Team " + currentTeam;
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('step2').classList.remove('hidden');
+            checkScenarioLock();
+        }
+
+        function checkScenarioLock() {
+            const scenario = document.getElementById('scenarioSelect').value;
+            const key = `lock_${currentTeam}_${scenario}`;
+            
+            const wrapper = document.getElementById('voteWrapper');
+            const notice = document.getElementById('lockNotice');
+
+            if (localStorage.getItem(key)) {
+                wrapper.classList.add('voted-lock');
+                notice.classList.remove('hidden');
+            } else {
+                wrapper.classList.remove('voted-lock');
+                notice.classList.add('hidden');
+            }
+        }
+
+        function processVote(choice) {
+            const scenario = document.getElementById('scenarioSelect').value;
+            const key = `lock_${currentTeam}_${scenario}`;
+            
+            if(localStorage.getItem(key)) return;
+
+            // ล็อกทันทีใน browser ของผู้เล่น
+            localStorage.setItem(key, "voted");
+
+            // ส่งข้อมูลไป Google Form (เบื้องหลัง)
+            const f = document.createElement('form');
+            f.action = formURL;
+            f.method = 'POST';
+            f.target = 'post_frame';
+
+            const fields = { [entryTeam]: currentTeam, [entryScen]: scenario, [entryVote]: choice };
+            for (const n in fields) {
+                const i = document.createElement('input');
+                i.type = 'hidden'; i.name = n; i.value = fields[n];
+                f.appendChild(i);
+            }
+
+            document.body.appendChild(f);
+            f.submit();
+            document.body.removeChild(f);
+            
+            checkScenarioLock(); // ทำให้ปุ่มจางทันที
+        }
+    </script>
+</body>
+</html>
