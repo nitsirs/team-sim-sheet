@@ -269,17 +269,7 @@
         }
         
         .footer-text {
-            margin-top: 25px;
-            font-size: 0.85rem;
-            color: #9ca3af;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .footer-text::before {
-            content: "🔄";
+            display: none;
         }
         
         /* Mobile Responsive */
@@ -325,6 +315,68 @@
             border-top-color: white;
             animation: spin 1s ease-in-out infinite;
         }
+        
+        /* Score Panel */
+        .score-panel {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+        
+        .score-card {
+            background: white;
+            border-radius: 14px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .score-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .score-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .score-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .score-update {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            margin-top: 5px;
+        }
+        
+        @media (max-width: 480px) {
+            .score-panel {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .score-value {
+                font-size: 1.8rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -338,6 +390,25 @@
 
     <div id="step2" class="container hidden">
         <h2 id="teamDisplay">TEAM</h2>
+        
+        <div class="score-panel">
+            <div class="score-card">
+                <div class="score-label">💰 Cash</div>
+                <div class="score-value" id="cashScore">-</div>
+                <div class="score-update" id="cashUpdate"></div>
+            </div>
+            <div class="score-card">
+                <div class="score-label">📊 Brand</div>
+                <div class="score-value" id="brandScore">-</div>
+                <div class="score-update" id="brandUpdate"></div>
+            </div>
+            <div class="score-card">
+                <div class="score-label">⚡ Morale</div>
+                <div class="score-value" id="moraleScore">-</div>
+                <div class="score-update" id="moraleUpdate"></div>
+            </div>
+        </div>
+        
         <select id="scenarioSelect" onchange="checkScenarioLock()">
             <option value="S1">🚨 สถานการณ์ที่ 1: วิกฤตยอดขายตก</option>
             <option value="P1">🌟 Pop-up Event: ปรากฏการณ์ไวรัล</option>
@@ -351,7 +422,6 @@
         </div>
         
         <div id="lockNotice" class="lock-notice hidden">คุณได้ลงมติในรอบนี้ไปแล้ว</div>
-        <p class="footer-text">เปลี่ยนทีม กด Refresh หน้าจอ</p>
     </div>
 
     <iframe name="post_frame" style="display:none;"></iframe>
@@ -361,8 +431,10 @@
         const entryTeam = "entry.973482943";
         const entryScen = "entry.1638356131";
         const entryVote = "entry.1554458861";
+        const scriptURL = "https://script.google.com/macros/s/AKfycbx6gbKJ_2QOoGcDKSehaxsi_maI2n454sPztVwuIiPhU9lDtW_8fr14oLev_4Y81cL1nA/exec";
 
         let currentTeam = null;
+        let scoreRefreshInterval = null;
 
         // Add keyboard support for Enter key
         document.addEventListener('DOMContentLoaded', function() {
@@ -373,6 +445,18 @@
                         startVoting();
                     }
                 });
+            }
+            
+            // Check for cached team
+            const cachedTeam = localStorage.getItem('cachedTeam');
+            if (cachedTeam) {
+                currentTeam = cachedTeam;
+                document.getElementById('teamDisplay').innerText = "TEAM " + currentTeam;
+                document.getElementById('step1').classList.add('hidden');
+                document.getElementById('step2').classList.remove('hidden');
+                checkScenarioLock();
+                startScoreRefresh();
+            } else {
                 teamInput.focus();
             }
         });
@@ -390,10 +474,60 @@
             // ลบเลข 0 ด้านหน้า (เช่น 05 กลายเป็น 5)
             currentTeam = parseInt(val, 10).toString();
             
+            // Cache the team
+            localStorage.setItem('cachedTeam', currentTeam);
+            
             document.getElementById('teamDisplay').innerText = "TEAM " + currentTeam;
             document.getElementById('step1').classList.add('hidden');
             document.getElementById('step2').classList.remove('hidden');
             checkScenarioLock();
+            startScoreRefresh();
+        }
+
+        function startScoreRefresh() {
+            // Fetch immediately
+            fetchTeamScores();
+            
+            // Then refresh every 2 seconds
+            if (scoreRefreshInterval) clearInterval(scoreRefreshInterval);
+            scoreRefreshInterval = setInterval(() => {
+                fetchTeamScores();
+            }, 2000);
+        }
+
+        function fetchTeamScores() {
+            if (!currentTeam) return;
+            
+            fetch(`${scriptURL}?teamId=${encodeURIComponent(currentTeam)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.log("Score data not found yet");
+                        return;
+                    }
+                    updateScoreDisplay(data);
+                })
+                .catch(error => {
+                    console.log("Fetching scores...");
+                });
+        }
+
+        function updateScoreDisplay(data) {
+            // Map column headers to display values
+            const cash = data["Current Cash เงินสด"] || data["Current Cash"] || "-";
+            const brand = data["Current Brand แบรนด์"] || data["Current Brand"] || "-";
+            const morale = data["Current Morale ขวัญและกำลังใจ"] || data["Current Morale"] || "-";
+            
+            // Update display
+            document.getElementById('cashScore').innerText = cash;
+            document.getElementById('brandScore').innerText = brand;
+            document.getElementById('moraleScore').innerText = morale;
+            
+            // Add update timestamps
+            const now = new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('cashUpdate').innerText = `ปรับปรุง ${now}`;
+            document.getElementById('brandUpdate').innerText = `ปรับปรุง ${now}`;
+            document.getElementById('moraleUpdate').innerText = `ปรับปรุง ${now}`;
         }
 
         function checkScenarioLock() {
@@ -439,6 +573,9 @@
             document.body.removeChild(f);
             
             checkScenarioLock(); // ทำให้ปุ่มจางทันที
+            
+            // Refresh scores immediately after vote
+            setTimeout(() => fetchTeamScores(), 500);
         }
     </script>
 </body>
